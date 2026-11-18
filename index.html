@@ -743,6 +743,9 @@ html{scrollbar-gutter:stable}
 .theme-sw.is-dark .sw-trail{background:#8a76f0}
 .theme-sw:not(.is-dark) .sw-trail{background:#8a6000}
 
+/* lo marcado "hidden" se esconde siempre, aunque otra regla le ponga display (sin esto, la capa oscura de las tarjetas tapaba la página fuera de Claude) */
+[hidden]{display:none!important}
+
 </style>
 
 <div class="tip" id="tip"></div>
