@@ -1,0 +1,35 @@
+# Cada día hábil, después del cierre de la bolsa de Nueva York, baja precios y opciones
+# nuevos con actualizar_datos.py y sube datos.js. GitHub Pages publica el cambio solo.
+name: Actualizar datos de mercado
+
+on:
+  schedule:
+    - cron: '30 22 * * 1-5'   # 22:30 UTC = 4:30 pm de México (centro), después del cierre
+  workflow_dispatch: {}        # botón "Run workflow" para correrlo a mano
+
+permissions:
+  contents: write
+
+concurrency:
+  group: actualizar-datos
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install yfinance pandas
+      - run: python actualizar_datos.py
+      - name: Subir datos.js si cambió
+        run: |
+          if git diff --quiet -- datos.js; then echo "Sin cambios"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add datos.js
+          git commit -m "Datos de mercado al $(date -u +%Y-%m-%d)"
+          git push
