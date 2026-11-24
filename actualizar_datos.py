@@ -115,6 +115,26 @@ def opciones(t, S, hoy):
     return mercado
 
 
+def escribir_resumen(data):
+    """resumen.js: lo poquito que usa la landing (carsama197-cloud.github.io), para que no cargue todo datos.js."""
+    res = {'updated': data['updated'], 'rf': data['rf']['value'], 'q': {}}
+    for t, a in data['assets'].items():
+        o, m = data['ohlc'][t], data['market'][t]
+        S = o[-1][4]
+        ch = m.get('1M') or next(iter(m.values()))
+        puts = {p['K']: p for p in ch['put']}
+        c = min((c for c in ch['call'] if c['K'] in puts and c['bid'] > 0), key=lambda c: abs(c['K'] - S), default=None)
+        q = {'name': a['name'], 'S': S, 'prev': o[-2][4], 'expiry': ch['expiry'], 'days': ch['days']}
+        if c:
+            p = puts[c['K']]
+            q.update({'K': c['K'], 'c': [c['bid'], c['ask']], 'p': [p['bid'], p['ask']]})
+        res['q'][t] = q
+    with open(os.path.join(AQUI, 'resumen.js'), 'w', encoding='utf-8') as f:
+        f.write('// Generado por actualizar_datos.py; lo usa la landing.\nwindow.RESUMEN=')
+        json.dump(res, f, separators=(',', ':'), ensure_ascii=False)
+        f.write(';\n')
+
+
 def main():
     ant = leer_anterior() or {}
     hoy = dt.date.today()
@@ -158,6 +178,7 @@ def main():
         f.write('// Generado por actualizar_datos.py; no editar a mano.\nwindow.DATA=')
         json.dump(data, f, separators=(',', ':'), ensure_ascii=False)
         f.write(';\n')
+    escribir_resumen(data)
     print(f'datos.js: {os.path.getsize(SALIDA) // 1024} KB, {len(data["ohlc"])} empresas, al {data["updated"]}'
           + (f'; fallaron: {fallas}' if fallas else ''))
 
