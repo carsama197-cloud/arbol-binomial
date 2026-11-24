@@ -1938,7 +1938,7 @@ function renderOption(c, tree) {
   $('tenorHelp').innerHTML = `Vence el <b>${fdate(c.ch.expiry)}</b> → ${TT('T', 'T')} = ${c.ch.days} / 365 = <span class="mono">${c.T.toFixed(4)}</span> años`;
   const ks = strikes(), kr = $('kRange');
   kr.max = ks.length - 1; kr.value = ks.indexOf(st.K);
-  kr.oninput = () => { st.K = ks[+kr.value]; simClear(); update(); };
+  kr.oninput = () => { st.K = ks[+kr.value]; simClear(); updSoon(); };
   $('kVal').textContent = money(st.K);
   const diff = st.type === 'call' ? c.S0 - st.K : st.K - c.S0, atm = Math.abs(c.S0 - st.K) / c.S0 < 0.01;
   $('moneyHelp').innerHTML = atm ? `<b>En el dinero (ATM):</b> el strike está prácticamente en el precio actual.`
@@ -2469,7 +2469,10 @@ function update() {
   renderConv(c, bs.b.price);
   renderMarket(c, bs);
 }
-$('nRange').oninput = e => { st.N = +e.target.value; st.step = 0; st.sel = null; simClear(); update(); };
+// al arrastrar una barra llegan muchos movimientos por cuadro: se junta todo y se redibuja una sola vez por cuadro
+let updQ = 0;
+function updSoon() { if (!updQ) updQ = requestAnimationFrame(() => { updQ = 0; update(); }); }
+$('nRange').oninput = e => { st.N = +e.target.value; st.step = 0; st.sel = null; simClear(); updSoon(); };
 $('dataDate').textContent = fdate(DATA.updated || DATA.rf.date);
 // ================= TARJETAS QUE SE AMPLÍAN =================
 // Cada pieza de una fórmula es un botón (.term). Al tocarlo, crece hasta volverse una tarjeta grande
@@ -2964,7 +2967,9 @@ document.addEventListener('keydown', e => {
 // Se agregan encima de la página: envuelven funciones existentes sin cambiar sus cálculos.
 const AN = { seenPieces: false, treeUsed: false, nudges: 0, lastAct: Date.now(), snap: null, bs: null, mid: null };
 const inView = el => { const r = el.getBoundingClientRect(); return r.bottom > 0 && r.top < innerHeight && r.width > 0; };
-const once = (el, cls, ms) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), ms); };
+// reinicia una animación de CSS sin obligar al navegador a reacomodar toda la página (antes se leía offsetWidth)
+const restartAnim = (el, cls) => { if (el.classList.contains(cls)) el.getAnimations().forEach(x => { if (x.animationName) x.currentTime = 0; }); else el.classList.add(cls); };
+const once = (el, cls, ms) => { restartAnim(el, cls); clearTimeout(el['_o' + cls]); el['_o' + cls] = setTimeout(() => el.classList.remove(cls), ms); };
 
 // ---------- 1. fases del árbol ----------
 const PH_L = ['1 · Hacia adelante: precios', '2 · Al vencimiento: pago', '3 · Hacia atrás: valor'];
@@ -3097,7 +3102,7 @@ roll = function (el, to, fmt, dur) {
   const from = el._v;
   _roll(el, to, fmt, dur);
   if (from != null && to !== from && !RM && typeof to === 'number') {
-    el.classList.remove('fl-up', 'fl-down'); void el.offsetWidth; el.classList.add(to > from ? 'fl-up' : 'fl-down');
+    const cls = to > from ? 'fl-up' : 'fl-down'; el.classList.remove(cls === 'fl-up' ? 'fl-down' : 'fl-up'); restartAnim(el, cls);
   }
 };
 
@@ -3126,7 +3131,7 @@ update = function () {
     if (prev.T !== c.T) t.push('T', 'dt', 'sqrtdt', 'u', 'd', 'p', 'd1', 'd2');
     if (prev.K !== st.K) t.push('payoff', 'd1', 'd2', 'ncdf');
     if (prev.type !== st.type) t.push('payoff', 'bsrec', 'bspay');
-    pulseChain([...new Set(t)]);
+    const terms = [...new Set(t)]; requestAnimationFrame(() => pulseChain(terms));   // se mide después de dibujar, no a la mitad
     if (prev.asset !== st.asset && !RM) document.querySelectorAll('.term .pane').forEach(p => once(p, 'swap', 550));
   }
   renderFin();
@@ -4425,6 +4430,37 @@ document.addEventListener('keydown', e => {
   if (e.key === '/' && !PK.open && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); pkIn.focus(); }
 });
 pkWide.addEventListener('change', () => { $('pkPrev').dataset.t = ''; if (PK.open) pkPreview(); });
+
+// ---------- rendimiento: no dibujar lo que no se ve ----------
+// Al mover una barra se recalculaba TODA la página (unos 60 ms por movimiento). Las secciones pesadas
+// que están lejos de la pantalla ahora solo guardan "tengo pendiente redibujarme" y lo hacen cuando
+// te acercas a ellas (a 800 px de distancia, antes de que se vean). Eso lo avisa un IntersectionObserver,
+// que es el vigilante del navegador que dice cuándo un elemento entra o sale de la pantalla.
+const LAZY = {};
+function lazyRender(name, el) {
+  if (!el || typeof window[name] !== 'function') return;
+  const real = window[name], L = LAZY[name] = { pend: null, vis: false, real };
+  L.flush = () => { if (L.pend) { const a = L.pend; L.pend = null; L.real.apply(null, a); } };
+  new IntersectionObserver(es => { L.vis = es[es.length - 1].isIntersecting; if (L.vis) L.flush(); }, { rootMargin: '800px 0px' }).observe(el);
+  window[name] = function (...a) { if (L.vis) { L.pend = null; return L.real.apply(this, a); } L.pend = a; };
+}
+lazyRender('renderConv', $('convChart'));
+lazyRender('renderMC', $('mcFan'));
+lazyRender('renderMarket', $('mktCompare'));
+lazyRender('renderFin', $('finNums'));
+// el resumen final usa los resultados de Montecarlo y del mercado: si se dibuja, primero los pone al día
+if (LAZY.renderFin) { const fin = LAZY.renderFin.real; LAZY.renderFin.real = function () { LAZY.renderMC && LAZY.renderMC.flush(); LAZY.renderMarket && LAZY.renderMarket.flush(); return fin.apply(this, arguments); }; }
+// el árbol grande (paso 5) también espera a que te acerques; se arma primero y luego se pone en su paso
+lazyRender('buildTree', $('tree'));
+lazyRender('applyStep', $('tree'));
+// las tarjetas de volatilidad (paso 2) no dependen del strike ni de los pasos: si nada de lo que usan cambió, no se rehacen
+(function () {
+  const real = window.renderVolCards; let key = null;
+  window.renderVolCards = function (c) {
+    const k = [st.asset, st.win, c.A.closes.length, cssv('--ink'), $('retTable').innerHTML ? 1 : 0].join('|');
+    if (k === key) return; key = k; return real.apply(this, arguments);
+  };
+})();
 
 initMarket();
 update();
