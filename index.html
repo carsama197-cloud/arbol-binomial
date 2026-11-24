@@ -948,7 +948,7 @@ section.step > .ptag,.stack > .ptag{margin-bottom:-4px}
 .pk-kbd{flex:none;font:500 11px/1 var(--f-mono);color:var(--t-muted);border:1px solid var(--t-line);border-radius:5px;padding:4px 6px}
 .pk.open .pk-kbd{display:none}
 
-.pk-pop{position:absolute;left:0;top:calc(100% + 6px);display:grid;grid-template-columns:minmax(0,1fr) 380px;width:min(1000px,calc(100vw - 48px));border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);box-shadow:0 24px 60px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.2);overflow:hidden;
+.pk-pop{position:absolute;left:0;top:calc(100% + 6px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,400px);width:min(1000px,calc(100vw - 48px));border:1px solid var(--t-line);border-radius:12px;background:var(--t-panel);box-shadow:0 24px 60px rgba(0,0,0,.35),0 2px 8px rgba(0,0,0,.2);overflow:hidden;
   opacity:0;transform:translateY(-6px) scale(.985);transform-origin:top left;pointer-events:none;visibility:hidden;transition:opacity .18s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility 0s .22s}
 .pk.open .pk-pop{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition:opacity .18s ease,transform .22s cubic-bezier(.2,.8,.2,1),visibility 0s}
 .pk-left{min-width:0;display:flex;flex-direction:column;border-right:1px solid var(--t-line)}
@@ -987,11 +987,13 @@ section.step > .ptag,.stack > .ptag{margin-bottom:-4px}
 .pv-px .when{flex-basis:100%;font-size:11px;color:var(--t-muted);font-family:var(--f-sans,inherit)}
 .pv-chart{position:relative;height:132px;border:1px solid var(--t-line);border-radius:8px;background:var(--t-bg)}
 .pv-chart svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+.pv-leg{display:flex;gap:12px;font-size:11px;color:var(--t-muted)}.pv-leg i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
 .pv-chart .lbl{font:500 9.5px var(--f-mono);fill:var(--t-muted)}
 .pv-chart .last{font:600 9.5px var(--f-mono);fill:var(--t-bg)}
-.pv-stats{display:grid;grid-template-columns:1fr 1fr;gap:0 14px;font-size:11.5px}
-.pv-stats div{display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--t-line)}
-.pv-stats dt{color:var(--t-muted);white-space:nowrap}
+.pv-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px;font-size:11.5px;margin:0}
+.pv-stats div{min-width:0;display:flex;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid var(--t-line)}
+.pv-stats .wide{grid-column:1/-1}
+.pv-stats dt{min-width:0;color:var(--t-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pv-stats dd{margin:0;color:var(--t-ink);font-family:var(--f-mono);font-weight:500;white-space:nowrap}
 .pv-opt{font-size:11.5px;color:var(--t-muted);line-height:1.45}
 .pv-opt b{color:var(--t-ink);font-family:var(--f-mono)}
@@ -4217,7 +4219,7 @@ const pkMark = (txt, q) => {
   const i = pkNorm(txt).indexOf(q);
   return i < 0 ? pkEsc(txt) : pkEsc(txt.slice(0, i)) + '<mark>' + pkEsc(txt.slice(i, i + q.length)) + '</mark>' + pkEsc(txt.slice(i + q.length));
 };
-const pkBig = v => v == null ? '—' : v >= 1e12 ? '$' + (v / 1e12).toFixed(2) + ' billones' : v >= 1e9 ? '$' + (v / 1e9).toFixed(1) + ' mil mill.' : '$' + (v / 1e6).toFixed(0) + ' mill.';
+const pkBig = v => v == null ? '—' : v >= 1e12 ? '$' + (v / 1e12).toFixed(2) + ' B' : v >= 1e9 ? '$' + (v / 1e9).toFixed(0) + ' mil M' : '$' + (v / 1e6).toFixed(0) + ' M';
 const pkVol = v => v >= 1e6 ? (v / 1e6).toFixed(1) + ' M' : (v / 1e3).toFixed(0) + ' mil';
 function pkDay(t) { const A = assetData(t); return A.closes.at(-1) / A.closes.at(-2) - 1; }
 const pkChg = (ch, dec = 2) => `<span class="chg" style="color:${ch >= 0 ? TC.up : TC.down}">${ch >= 0 ? '▲' : '▼'} ${Math.abs(ch * 100).toFixed(dec)}%</span>`;
@@ -4310,18 +4312,19 @@ function pkPreview() {
   const avgV = rows.slice(-63).reduce((s, r) => s + r[5], 0) / Math.min(63, rows.length);
   const m = DATA.market[t], tenors = TENORS.filter(([v]) => m[v]);
   const ch0 = m['3M'] || m[tenors[0][0]], atm = ch0.call.reduce((p, c) => Math.abs(c.K - A.S0) < Math.abs(p.K - A.S0) ? c : p, ch0.call[0]);
-  const stat = (l, v) => `<div><dt>${l}</dt><dd>${v}</dd></div>`;
+  const stat = (l, v, w) => `<div${w ? ' class="wide"' : ''}><dt>${l}</dt><dd>${v}</dd></div>`;
   box.innerHTML = `
     <div class="pv-h"><span class="pv-logo">${pkEsc(t.slice(0, 4))}</span><span class="pv-name">${pkEsc(a.long || a.name)}</span></div>
     <div class="pv-tags"><b>${t}</b>${a.exch ? `<span>${pkEsc(a.exch)}</span>` : ''}${a.sector ? `<span>${pkEsc(a.sector)}</span>` : ''}${a.industry ? `<span>${pkEsc(a.industry)}</span>` : ''}</div>
     <div class="pv-px"><span class="big">${A.S0.toFixed(2)}</span><span class="cur">USD</span>${pkChg(pkDay(t))}<span class="when">Cierre del ${fdate(a.date || A.dates.at(-1))} · cambio contra el día anterior</span></div>
     <div class="pv-chart" id="pvChart"></div>
+    <div class="pv-leg"><span><i style="background:${TC.up}"></i>gana: arriba de hace un año</span><span><i style="background:${TC.down}"></i>pierde: abajo</span></div>
     <dl class="pv-stats">
-      ${stat('Rango 1 año', `${lo.toFixed(2)} – ${hi.toFixed(2)}`)}
+      ${stat('Rango del último año (mínimo – máximo)', `${lo.toFixed(2)} – ${hi.toFixed(2)}`, 1)}
       ${stat('Rendimiento 1 año', `<span style="color:${ret1 >= 0 ? TC.up : TC.down}">${ret1 >= 0 ? '+' : '−'}${Math.abs(ret1 * 100).toFixed(1)}%</span>`)}
       ${stat('Volatilidad 1 año', pct(A.winStats['1A'].sdAnnual, 1))}
       ${stat('Volumen diario', pkVol(avgV))}
-      ${stat(a.kind === 'ETF' ? 'Activos del fondo' : 'Valor de mercado', pkBig(a.kind === 'ETF' ? a.assets : a.mcap))}
+      ${stat(a.kind === 'ETF' ? 'Activos' : 'Valor de mercado', pkBig(a.kind === 'ETF' ? a.assets : a.mcap))}
       ${stat('P/U (PER)', a.pe != null ? a.pe.toFixed(1) : '—')}
       ${stat('Beta', a.beta != null ? a.beta.toFixed(2) : '—')}
       ${stat('Dividendo', a.div != null ? a.div.toFixed(2) + '%' : '—')}
@@ -4331,7 +4334,7 @@ function pkPreview() {
   if (!RM) { box.classList.remove('swap'); void box.offsetWidth; box.classList.add('swap'); }
   pkSpark($('pvChart'), y1);
 }
-// gráfica de un año: línea del precio (gris = la acción) y volumen abajo
+// gráfica de un año: verde mientras el precio está arriba de donde empezó el año, rojo cuando está abajo; volumen abajo
 function pkSpark(el, rows) {
   const W = el.clientWidth || 340, H = el.clientHeight || 132, R = 50, T = 10, B = 18, VH = 26;
   const cl = rows.map(r => r[4]), mx = Math.max(...cl), mn = Math.min(...cl), vmax = Math.max(...rows.map(r => r[5]));
@@ -4340,16 +4343,24 @@ function pkSpark(el, rows) {
   const bw = Math.max(1, (W - R - 12) / rows.length - .6);
   const vol = rows.map((r, i) => { const h = r[5] / vmax * VH; return `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${(H - B - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${i && r[4] < rows[i - 1][4] ? TC.down : TC.up}" opacity=".45"/>`; }).join('');
   const months = []; rows.forEach((r, i) => { if (i && r[0].slice(5, 7) !== rows[i - 1][0].slice(5, 7) && ['01', '04', '07', '10'].includes(r[0].slice(5, 7))) months.push([i, r[0]]); });
-  const ly = y(cl.at(-1));
+  const ly = y(cl.at(-1)), yb = y(cl[0]); // yb: precio de hace un año; arriba gana (verde), abajo pierde (rojo)
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-hidden="true">
-    <defs><linearGradient id="pvG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${TC.mkt}" stop-opacity=".28"/><stop offset="1" stop-color="${TC.mkt}" stop-opacity="0"/></linearGradient></defs>
+    <defs>
+      <clipPath id="pvAbove"><rect x="0" y="0" width="${W}" height="${yb}"/></clipPath>
+      <clipPath id="pvBelow"><rect x="0" y="${yb}" width="${W}" height="${H}"/></clipPath>
+      <linearGradient id="pvGu" gradientUnits="userSpaceOnUse" x1="0" y1="${T}" x2="0" y2="${yb}"><stop offset="0" stop-color="${TC.up}" stop-opacity=".34"/><stop offset="1" stop-color="${TC.up}" stop-opacity=".03"/></linearGradient>
+      <linearGradient id="pvGd" gradientUnits="userSpaceOnUse" x1="0" y1="${yb}" x2="0" y2="${H - B - VH - 4}"><stop offset="0" stop-color="${TC.down}" stop-opacity=".03"/><stop offset="1" stop-color="${TC.down}" stop-opacity=".34"/></linearGradient>
+    </defs>
     <line x1="6" x2="${W - R}" y1="${y(mx)}" y2="${y(mx)}" stroke="${TC.grid}"/><line x1="6" x2="${W - R}" y1="${y(mn)}" y2="${y(mn)}" stroke="${TC.grid}"/>
     ${vol}
-    <polygon points="${x(0)},${H - B - VH - 4} ${pts} ${x(cl.length - 1)},${H - B - VH - 4}" fill="url(#pvG)"/>
-    <polyline points="${pts}" fill="none" stroke="${TC.mkt}" stroke-width="1.6" stroke-linejoin="round"/>
+    <polygon points="${x(0)},${yb} ${pts} ${x(cl.length - 1)},${yb}" fill="url(#pvGu)" clip-path="url(#pvAbove)"/>
+    <polygon points="${x(0)},${yb} ${pts} ${x(cl.length - 1)},${yb}" fill="url(#pvGd)" clip-path="url(#pvBelow)"/>
+    <line x1="6" x2="${W - R}" y1="${yb}" y2="${yb}" stroke="${TC.muted}" stroke-dasharray="3 3" stroke-width="1" opacity=".8"/>
+    <polyline points="${pts}" fill="none" stroke="${TC.up}" stroke-width="1.7" stroke-linejoin="round" clip-path="url(#pvAbove)"/>
+    <polyline points="${pts}" fill="none" stroke="${TC.down}" stroke-width="1.7" stroke-linejoin="round" clip-path="url(#pvBelow)"/>
     <text class="lbl" x="${W - R + 6}" y="${y(mx) + 3}">${mx.toFixed(mx < 100 ? 2 : 0)}</text>
     <text class="lbl" x="${W - R + 6}" y="${y(mn) + 3}">${mn.toFixed(mn < 100 ? 2 : 0)}</text>
-    <rect x="${W - R + 2}" y="${clamp(ly - 8, 0, H - B - 16)}" width="${R - 4}" height="16" rx="3" fill="${TC.ink}"/>
+    <rect x="${W - R + 2}" y="${clamp(ly - 8, 0, H - B - 16)}" width="${R - 4}" height="16" rx="3" fill="${cl.at(-1) >= cl[0] ? TC.up : TC.down}"/>
     <text class="last" x="${W - R / 2}" y="${clamp(ly - 8, 0, H - B - 16) + 11.5}" text-anchor="middle">${cl.at(-1).toFixed(2)}</text>
     ${months.map(([i, d]) => `<text class="lbl" x="${x(i)}" y="${H - 5}" text-anchor="middle">${d.slice(5, 7) === '01' ? d.slice(0, 4) : MES[+d.slice(5, 7) - 1]}</text>`).join('')}
   </svg>`;
